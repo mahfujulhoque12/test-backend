@@ -100,13 +100,18 @@ export const updateUser = async (req, res, next) => {
     const user = await User.findById(req.params.id);
     if (!user) return next(errorHandaler(404, "User not found"));
 
-    // ✅ Upload image if provided
+    // ✅ Upload image if provided (FIXED for serverless)
     if (req.file) {
-      const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+      // Convert buffer to base64 for Cloudinary
+      const b64 = Buffer.from(req.file.buffer).toString("base64");
+      const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+
+      const uploadResult = await cloudinary.uploader.upload(dataURI, {
         folder: "uploads",
       });
       user.image = uploadResult.secure_url;
-      fs.unlinkSync(req.file.path); // delete temp file
+
+      // Remove the fs.unlinkSync line - no file was written to disk
     }
 
     if (userName) user.userName = userName;

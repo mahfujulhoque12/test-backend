@@ -6,7 +6,15 @@ import { getUserListing } from "../controllers/user.controler.js";
 import { verifyUser } from "../middleware/verifyUser.js";
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
+
+// Use memory storage instead of disk storage
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+});
 
 // PUT /api/user/:id
 router.put("/:id", upload.single("image"), updateUser);

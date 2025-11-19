@@ -1,9 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
 import connectDB from "./config/db.js";
-// import userRouter from "./routes/user.route.js";
+import userRouter from "./routes/user.route.js";
 import authRouter from "./routes/auth.route.js";
-// import listingRouter from "./routes/listing.route.js";
+import listingRouter from "./routes/listing.route.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
@@ -57,9 +57,9 @@ try {
   console.log("MongoDB connected");
 
   // Add routes after DB connection
-  // app.use("/api/user", userRouter);
+  app.use("/api/user", userRouter);
   app.use("/api", authRouter);
-  // app.use("/api/listing", listingRouter);
+  app.use("/api/listing", listingRouter);
 } catch (error) {
   console.error("Failed to connect to MongoDB:", error);
   // Still start server but without DB routes
