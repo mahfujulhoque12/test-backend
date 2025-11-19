@@ -8,7 +8,10 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 const corsConfig = {
-  origin: "*",
+  origin: [
+    "http://localhost:3000",
+    "https://real-estate-frontend-under-developm.vercel.app",
+  ],
   credentials: true, // 🔥 allow cookies
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
