@@ -1,29 +1,34 @@
 // controllers/listing.controller.js
 
 import cloudinary from "./../utils/cloudinary.js";
-import fs from "fs";
 import Listing from "./../models/listing.model.js";
 
-// =======================
-// 👉 CREATE LISTING
-// =======================
 export const createListing = async (req, res, next) => {
   try {
     const { imageUrls, ...listingData } = req.body;
-
     let uploadedImageUrls = [];
 
-    // Upload new images
+    // Upload new images from memory buffer
     if (req.files && req.files.length > 0) {
       for (let file of req.files) {
-        const uploadResult = await cloudinary.uploader.upload(file.path, {
-          folder: "listings",
-          allowed_formats: ["jpg", "jpeg", "png", "webp"],
-          transformation: [{ quality: "auto", fetch_format: "auto" }],
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: "listings",
+              allowed_formats: ["jpg", "jpeg", "png", "webp"],
+              transformation: [{ quality: "auto", fetch_format: "auto" }],
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+
+          // Send the buffer to Cloudinary
+          uploadStream.end(file.buffer);
         });
 
         uploadedImageUrls.push(uploadResult.secure_url);
-        fs.unlinkSync(file.path);
       }
     }
 
@@ -35,13 +40,70 @@ export const createListing = async (req, res, next) => {
 
     return res.status(201).json(listing);
   } catch (error) {
-    // cleanup temp files on error
-    if (req.files) {
-      req.files.forEach((file) => {
-        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      });
-    }
     next(error);
+  }
+};
+
+export const updateListing = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const updateData = { ...req.body };
+
+    const listing = await Listing.findById(id);
+    if (!listing) return res.status(404).json({ message: "Listing not found" });
+
+    if (req.user && listing.userRef.toString() !== req.user.id)
+      return res.status(403).json({ message: "Unauthorized" });
+
+    let newUploadedImages = [];
+
+    // Upload from memory buffer
+    if (req.files && req.files.length > 0) {
+      for (let file of req.files) {
+        const uploadResult = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: "listings",
+              allowed_formats: ["jpg", "jpeg", "png", "webp"],
+              transformation: [{ quality: "auto", fetch_format: "auto" }],
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+
+          uploadStream.end(file.buffer);
+        });
+
+        newUploadedImages.push(uploadResult.secure_url);
+      }
+    }
+
+    // Use frontend's current images list
+    const frontendImages = Array.isArray(updateData.imageUrls)
+      ? updateData.imageUrls
+      : [];
+
+    const updatedImageUrls = [...frontendImages, ...newUploadedImages];
+
+    // Update listing
+    const updatedListing = await Listing.findByIdAndUpdate(
+      id,
+      {
+        ...updateData,
+        imageUrls: updatedImageUrls,
+      },
+      { new: true, runValidators: true }
+    );
+
+    return res.status(200).json({
+      message: "Listing updated successfully",
+      listing: updatedListing,
+    });
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -58,52 +120,6 @@ export const getAllListings = async (req, res) => {
 // =======================
 // 👉 UPDATE LISTING
 // =======================
-export const updateListing = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const updateData = { ...req.body };
-
-    const listing = await Listing.findById(id);
-    if (!listing) return res.status(404).json({ message: "Listing not found" });
-
-    if (req.user && listing.userRef.toString() !== req.user.id)
-      return res.status(403).json({ message: "Unauthorized" });
-
-    let newUploadedImages = [];
-    if (req.files && req.files.length > 0) {
-      for (let file of req.files) {
-        const uploadResult = await cloudinary.uploader.upload(file.path, {
-          folder: "listings",
-          transformation: [{ quality: "auto", fetch_format: "auto" }],
-        });
-        newUploadedImages.push(uploadResult.secure_url);
-        fs.unlinkSync(file.path);
-      }
-    }
-
-    // Use frontend's current images list
-    const frontendImages = Array.isArray(updateData.imageUrls)
-      ? updateData.imageUrls
-      : [];
-
-    const updatedImageUrls = [...frontendImages, ...newUploadedImages];
-
-    listing.set({
-      ...updateData,
-      imageUrls: updatedImageUrls,
-    });
-
-    await listing.save();
-
-    return res.status(200).json({
-      message: "Listing updated successfully",
-      listing,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 
 // find one listing
 export const findOneLisitng = async (req, res) => {
